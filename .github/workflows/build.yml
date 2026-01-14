@@ -121,3 +121,44 @@ jobs:
                 fi
             done
           echo "\nProject: https://sonarcloud.io/project/summary?id=${PROJECT_KEY}" >> $GITHUB_STEP_SUMMARY
+      - name: Export Sonar JSON report
+        if: always()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PROJECT_KEY: vanderraad_ai-reviewer
+        run: |
+          set -eo pipefail
+          echo "Exporting SonarCloud report..."
+
+          # Fetch quality gate status
+          qg=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status?projectKey=${PROJECT_KEY}")
+
+          # Fetch key measures
+          measures=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/measures/component?component=${PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density")
+
+          # Fetch issues with pagination
+          page=1
+          page_size=500
+          issues_all='[]'
+          while :; do
+            resp=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/issues/search?componentKeys=${PROJECT_KEY}&resolved=false&ps=${page_size}&p=${page}")
+            issues_page=$(echo "$resp" | jq '.issues')
+            issues_all=$(jq -s '.[0] + .[1]' <(echo "$issues_all") <(echo "$issues_page"))
+            total=$(echo "$resp" | jq -r '.total // .paging.total // 0')
+            collected=$(echo "$issues_all" | jq 'length')
+            if [ "$collected" -ge "$total" ] || [ $(echo "$issues_page" | jq 'length') -lt $page_size ]; then
+              break
+            fi
+            page=$((page+1))
+          done
+
+          # Assemble final report
+          jq -n --argjson qg "$qg" --argjson issues "$issues_all" --argjson measures "$measures" '{qualityGate:$qg, issues:$issues, measures:$measures}' > sonar_report.json
+          echo "Report written to sonar_report.json (size=$(wc -c < sonar_report.json) bytes)"
+
+      - name: Upload Sonar report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-report
+          path: sonar_report.json
