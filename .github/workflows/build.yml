@@ -54,12 +54,9 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          # Provide compile_commands and PR metadata (if present) so SonarCloud can decorate PRs
+          # Provide compilation database only; PR metadata is handled automatically when running on PRs
           args: >
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
-            --define "sonar.pullrequest.key=${{ github.event.pull_request.number }}"
-            --define "sonar.pullrequest.branch=${{ github.head_ref }}"
-            --define "sonar.pullrequest.base=${{ github.base_ref }}"
 
       - name: Wait for SonarCloud Quality Gate
         env:
