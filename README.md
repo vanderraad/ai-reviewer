@@ -1,13 +1,35 @@
 AI-reviewer
 
-**CI: SonarQube**
+**CI: Graphite code review export**
 
-- **Secrets**: Add the following repository secrets (Settings → Secrets → Actions): `SONAR_HOST_URL` (your SonarQube server URL) and `SONAR_TOKEN` (a user token with scanner/analysis permissions).
-- **When it runs**: The workflow runs on `push` to `main`/`master` and on `pull_request`.
-- **Runner requirements**: The job uses the `sonarsource/sonar-scanner-cli` Docker image, so the runner must support Docker (GitHub's `ubuntu-latest` does).
-- **PR decoration**: To enable PR decoration/comments you need SonarQube Developer Edition (or SonarCloud with PR analysis). Configure the SonarQube instance for your project accordingly.
-- **Local test**: You can run a local scan (example):
+- **Secrets (set in GitHub Actions secrets)**:
+  - `GRAPHITE_URL` — Graphite base URL (e.g., `https://graphite.example`)
+  - `GRAPHITE_TOKEN` — API token (Bearer) used to query the Graphite render API
+  - `GRAPHITE_METRIC` — Metric name for comments (e.g., `ai_reviewer.reviews.comments`)
+
+- **What the workflow does**:
+  - On each `push` to `main`, the workflow queries Graphite for the latest value of `GRAPHITE_METRIC` (last 10 minutes), writes a JSON report `code_review_comments.json`, and uploads it as a downloadable artifact named `code-review-comments`.
+
+- **How to use your token**:
+  - Add the provided token as the `GRAPHITE_TOKEN` repository secret (Settings → Secrets → Actions).
+
+- **Report format** (`code_review_comments.json`):
+```json
+{
+  "metric": "ai_reviewer.reviews.comments",
+  "value": 12.0,
+  "timestamp": 1673650000,
+  "fetched_at": "2026-01-14T12:00:00Z"
+}
+```
+
+- **Local test**:
+  - You can test the Graphite query locally using `curl`:
 
 ```bash
-docker run --rm -e SONAR_HOST_URL="https://your-sonarqube" -e SONAR_TOKEN="YOUR_TOKEN" -v "$PWD":/usr/src -w /usr/src sonarsource/sonar-scanner-cli -Dsonar.projectKey="your/project" -Dsonar.sources=.
+curl -H "Authorization: Bearer $GRAPHITE_TOKEN" "$GRAPHITE_URL/render?target=$GRAPHITE_METRIC&format=json&from=-10min&until=now" | jq '.'
 ```
+
+- **Notes**:
+  - The workflow expects the Graphite API to accept a Bearer token in the `Authorization` header. If your Graphite instance uses a different auth header, update `.github/workflows/graphite.yml` accordingly.
+
