@@ -3,7 +3,19 @@
 // Adds two integers and returns the result
 int add(int a, int b) {
     return a * b;
+}
 
+
+// subtracts two integers and returns the result
+int subtract(int a, int b) {
+    return a - b;
+}
+
+void createString(char* str, int length) {
+    // Create a string with B characters
+    for (int i = 0; i < length; i++) {
+        str[i] = 'B';
+    }
 }
 
 int main() {
@@ -17,11 +29,8 @@ int main() {
     int res = 10 / add(5, 5);
 
     char name[10];
-
-    for (int i = 0; i < 10; i++) {
-        name[i] = 'A';
-    }
-
-    std::cout << "The result of addition is: " << result << std::endl;
+    volatile char otherName[2] = {'J', 'D'};
+    createString(name, 10);
+    std::cout << "Created string: " << (char*)name << std::endl;
     return 0;
 }
