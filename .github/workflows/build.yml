@@ -54,17 +54,29 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
+          # Provide compile_commands and PR metadata (if present) so SonarCloud can decorate PRs
           args: >
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
-      
+            --define "sonar.pullrequest.key=${{ github.event.pull_request.number }}"
+            --define "sonar.pullrequest.branch=${{ github.head_ref }}"
+            --define "sonar.pullrequest.base=${{ github.base_ref }}"
+
       - name: Wait for SonarCloud Quality Gate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           PROJECT_KEY=vanderraad_ai-reviewer
           URL="https://sonarcloud.io/api/qualitygates/project_status?projectKey=$PROJECT_KEY"
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ] && [ -n "$PR_NUMBER" ]; then
+            URL="${URL}&pullRequest=${PR_NUMBER}"
+            echo "Checking Quality Gate for PR #${PR_NUMBER}"
+          else
+            echo "Checking Quality Gate for project"
+          fi
           echo "Polling SonarCloud for Quality Gate status..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 40); do
             status=$(curl -s -u "${SONAR_TOKEN}:" "$URL" | jq -r .projectStatus.status)
             echo "Status: $status"
             if [ "$status" = "OK" ] || [ "$status" = "ERROR" ] || [ "$status" = "WARN" ]; then break; fi
@@ -72,5 +84,7 @@ jobs:
           done
           if [ "$status" != "OK" ]; then
             echo "Quality Gate failed: $status"
+            # Provide link to SonarCloud UI for quick inspection
+            echo "See: https://sonarcloud.io/project/summary?id=vanderraad_ai-reviewer"
             exit 1
           fi
