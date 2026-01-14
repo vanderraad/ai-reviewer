@@ -77,14 +77,18 @@ jobs:
           fi
           echo "Polling SonarCloud for Quality Gate status..."
           for i in $(seq 1 40); do
-            status=$(curl -s -u "${SONAR_TOKEN}:" "$URL" | jq -r .projectStatus.status)
+            resp=$(curl -s -u "${SONAR_TOKEN}:" "$URL")
+            status=$(echo "$resp" | jq -r .projectStatus.status)
             echo "Status: $status"
             if [ "$status" = "OK" ] || [ "$status" = "ERROR" ] || [ "$status" = "WARN" ]; then break; fi
             sleep 5
           done
           if [ "$status" != "OK" ]; then
             echo "Quality Gate failed: $status"
-            # Provide link to SonarCloud UI for quick inspection
-            echo "See: https://sonarcloud.io/project/summary?id=vanderraad_ai-reviewer"
+            echo "\nQuality Gate conditions:"
+            echo "$resp" | jq -r '.projectStatus.conditions[] | "- \(.metricKey): \(.status) (actual=\(.actualValue) threshold=\(.errorThreshold) comparator=\(.comparator))"'
+            echo "\nTop unresolved issues (BLOCKER/CRITICAL):"
+            curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/issues/search?componentKeys=$PROJECT_KEY&resolved=false&severities=BLOCKER,CRITICAL&ps=5" | jq -r '.issues[] | "- [\(.severity)] \(.message) (\(.component):\(.line)  key=\(.key))"'
+            echo "\nSee: https://sonarcloud.io/project/summary?id=$PROJECT_KEY"
             exit 1
           fi
