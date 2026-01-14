@@ -92,3 +92,35 @@ jobs:
             echo "\nSee: https://sonarcloud.io/project/summary?id=$PROJECT_KEY"
             exit 1
           fi
+
+      - name: Publish Sonar summary to GitHub run
+        if: always()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PROJECT_KEY: vanderraad_ai-reviewer
+        run: |
+          set -e
+          echo "## SonarCloud Quality Gate" > $GITHUB_STEP_SUMMARY
+          STATUS=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status?projectKey=${PROJECT_KEY}" | jq -r .projectStatus.status)
+          echo "- Status: **${STATUS}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Top unresolved issues (severity, file:line, message)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/issues/search?componentKeys=${PROJECT_KEY}&resolved=false&ps=10&severities=BLOCKER,CRITICAL,MAJOR" \
+            | jq -r '.issues[] | [.severity, .message, .component, (.line|tostring), .key] | @tsv' \
+            | while IFS=$'\t' read -r sev msg comp line key; do
+                file=$(echo "$comp" | sed 's/^[^:]*://')
+                # Normalize message to a single line for the summary
+                msg=$(echo "$msg" | tr '\n' ' ' | sed 's/\r//g')
+                # Add markdown to the summary using printf (clean newlines and backticks)
+                printf -- "- **%s**\n  - file: `%s:%s`\n  - message: %s\n  - [Open issue](https://sonarcloud.io/project/issues?id=${PROJECT_KEY}&open=%s)\n\n" "$sev" "$file" "$line" "$msg" "$key" >> $GITHUB_STEP_SUMMARY
+                # Emit annotations for BLOCKER/CRITICAL so they appear in GitHub UI
+                if [ "$sev" = "BLOCKER" ] || [ "$sev" = "CRITICAL" ]; then
+                  if [ "$line" != "null" ] && [ -n "$line" ]; then
+                    echo "::error file=$file,line=$line::[$sev] $msg (key=$key)"
+                  else
+                    echo "::error file=$file::[$sev] $msg (key=$key)"
+                  fi
+                fi
+            done
+          echo "\nProject: https://sonarcloud.io/project/summary?id=${PROJECT_KEY}" >> $GITHUB_STEP_SUMMARY
