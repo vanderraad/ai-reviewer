@@ -21,7 +21,34 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - name: Run Build Wrapper
         run: |
-          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake . && cmake --build .
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build --config Release
+
+      - name: Normalize Compilation Database
+        run: |
+          python - <<'PY'
+          import json, os, re
+          src = 'build/compile_commands.json'
+          dst_dir = os.environ.get('BUILD_WRAPPER_OUT_DIR', 'build_wrapper_output_directory')
+          dst = os.path.join(dst_dir, 'compile_commands.json')
+          os.makedirs(dst_dir, exist_ok=True)
+          with open(src, 'r', encoding='utf-8') as f:
+              data = json.load(f)
+          workspace = os.environ.get('GITHUB_WORKSPACE', os.getcwd()).replace('\\\\', '/')
+          def fix_path(s):
+              if not isinstance(s, str):
+                  return s
+              s = s.replace('\\\\', '/')
+              s = re.sub(r'C:/Users/[^/]+/Documents/ai-reviewer', workspace, s, flags=re.IGNORECASE)
+              return s
+          for e in data:
+              for k in ('directory','file','command','output'):
+                  if k in e:
+                      e[k] = fix_path(e[k])
+          with open(dst, 'w', encoding='utf-8') as f:
+              json.dump(data, f, indent=2)
+          print('Normalized compilation database written to', dst)
+          PY
+
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
