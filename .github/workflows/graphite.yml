@@ -1,0 +1,66 @@
+name: Graphite Code Review Report
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  export-comments:
+    name: Fetch latest comments metric and upload report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest comments from Graphite
+        env:
+          GRAPHITE_URL: ${{ secrets.GRAPHITE_URL }}       # e.g. https://graphite.example
+          GRAPHITE_TOKEN: ${{ secrets.GRAPHITE_TOKEN }}   # Bearer token
+          GRAPHITE_METRIC: ${{ secrets.GRAPHITE_METRIC }} # e.g. ai_reviewer.reviews.comments
+        run: |
+          set -euo pipefail
+          if [ -z "${GRAPHITE_URL:-}" ]; then
+            echo "GRAPHITE_URL secret is not set"; exit 1
+          fi
+          if [ -z "${GRAPHITE_TOKEN:-}" ]; then
+            echo "GRAPHITE_TOKEN secret is not set"; exit 1
+          fi
+          if [ -z "${GRAPHITE_METRIC:-}" ]; then
+            echo "GRAPHITE_METRIC secret is not set"; exit 1
+          fi
+
+          METRIC="$GRAPHITE_METRIC"
+          # Query last 10 minutes to get a recent datapoint
+          URL="${GRAPHITE_URL%/}/render?target=${METRIC}&format=json&from=-10min&until=now"
+
+          echo "Querying Graphite: $URL"
+          resp=$(curl -s -H "Authorization: Bearer ${GRAPHITE_TOKEN}" "$URL")
+
+          # Save raw response for debugging
+          echo "$resp" | jq '.' > graphite_raw.json
+
+          # Extract last non-null datapoint (value & timestamp)
+          val=$(echo "$resp" | jq -r '.[0].datapoints | map(select(.[0] != null)) | last | .[0] // empty')
+          ts=$(echo "$resp" | jq -r '.[0].datapoints | map(select(.[0] != null)) | last | .[1] // empty')
+          fetched_at=$(date --utc +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Create JSON report with robust numeric handling
+          jq -n --arg metric "$METRIC" --arg value "$val" --arg ts "$ts" --arg fetched_at "$fetched_at" \
+            '{metric:$metric, value:(try($value|tonumber) catch null), timestamp:(try($ts|tonumber) catch null), fetched_at:$fetched_at, raw: input}' \
+            <(echo "$resp") > code_review_comments.json || {
+            # If the above failed (jq input shorthand may not work in all shells), fallback to simple construction
+            printf '{"metric":"%s","value":%s,"timestamp":%s,"fetched_at":"%s"}\n' "$METRIC" "${val:-null}" "${ts:-null}" "$fetched_at" > code_review_comments.json
+          }
+
+          echo "Report written to code_review_comments.json"
+
+      - name: Upload code review comments artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-review-comments
+          path: code_review_comments.json
+
+      - name: Log report
+        run: |
+          echo "--- code_review_comments.json ---"
+          cat code_review_comments.json
