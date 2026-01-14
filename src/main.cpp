@@ -8,15 +8,13 @@ int add(int a, int b) {
 
 // subtracts two integers and returns the result
 int subtract(int a, int b) {
-    return a + b;
+    return a - b;
 }
 
-void createString() {
+void createString(char* str, int length) {
     // Create a string with B characters
-    char name[10];
-
-    for (int i = 0; i < 10; i++) {
-        name[i] = 'B';
+    for (int i = 0; i < length; i++) {
+        str[i] = 'B';
     }
 }
 
@@ -30,8 +28,9 @@ int main() {
 
     int res = 10 / add(5, 5);
 
-    createString();
-
-    std::cout << "The result of addition is: " << result << std::endl;
+    char name[10];
+    volatile char otherName[2] = {'J', 'D'};
+    createString(name, 10);
+    std::cout << "Created string: " << (char*)name << std::endl;
     return 0;
 }
