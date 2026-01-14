@@ -1,0 +1,99 @@
+# .gitignore for a C++ project using CMake (Windows)
+# Ignores build artifacts, generated files, OS and editor temp files
+
+# Build directories
+/build/
+/build/**
+
+# CMake files and generated build system files
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+/build.ninja
+/compile_commands.json
+/CMakeScratch/
+
+# Executables and libraries
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.out
+
+# Object and temporary files
+*.o
+*.obj
+*.lo
+*.lai
+*.la
+*.mod
+
+# Debug files
+*.pdb
+*.dSYM/
+*.su
+
+# Coverage & profiling
+*.gcda
+*.gcno
+*.gcov
+coverage/
+coverage.*
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+*.cache
+
+# OS generated files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# IDEs and editors
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+*.suo
+*.user
+*.userosscache
+*.sln
+*.VC.db
+
+# JetBrains
+out/
+
+# Vim / Emacs swap files
+*~
+*.swp
+.*.swp
+
+# Visual Studio
+*.ncb
+*.sdf
+*.opensdf
+*.vcxproj*
+*.vcproj*
+
+# Misc
+*.class
+*.jar
+
+# Python virtualenvs (if any)
+venv/
+ENV/
+env/
+
+# Node modules (if repo includes any JS tooling)
+node_modules/
+
+# Sonar, coverage, and other analysis artifacts
+.sonar/
+
+# If you already committed files you want to ignore, remove them from the index:
+# git rm -r --cached <file_or_dir> && git commit -m "Remove ignored files"
